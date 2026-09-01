@@ -28,9 +28,37 @@ from nexus_api.services.json_store import JsonFileStore
 logger = get_logger("storage")
 
 
+# Files that make a `data/` directory the *complete* dataset rather than a
+# partial copy. `apps/api/data/` is a deploy-time subset (see
+# apps/api/Dockerfile.cloudrun.data) and previously shadowed the real tree,
+# which silently emptied /api/enterprise departments and hid vendor records.
+REQUIRED_DATA_FILES = ("agents/roster.json", "departments.json")
+
+
+def _is_complete_data_dir(candidate: Path) -> bool:
+    return all((candidate / relative).is_file() for relative in REQUIRED_DATA_FILES)
+
+
 def find_project_root() -> Path:
+    """Locate the directory whose `data/` holds the dataset the API needs.
+
+    Resolution order is deterministic:
+      1. the nearest ancestor with a *complete* `data/` tree;
+      2. otherwise the nearest ancestor with any `data/` tree (deploy images
+         that ship a subset);
+      3. otherwise the package root.
+
+    Without step 1 the search stopped at `apps/api/data`, which has no
+    `departments.json`, so `GET /api/enterprise` returned zero departments in
+    local development while working in the container.
+    """
     current = Path(__file__).resolve()
-    for parent in [current, *current.parents]:
+    candidates = [current, *current.parents]
+
+    for parent in candidates:
+        if _is_complete_data_dir(parent / "data"):
+            return parent
+    for parent in candidates:
         if (parent / "data").exists():
             return parent
     return current.parents[2]
@@ -38,6 +66,21 @@ def find_project_root() -> Path:
 
 PROJECT_ROOT = find_project_root()
 DATA_DIR = Path(os.environ.get("NEXUS_DATA_DIR", PROJECT_ROOT / "data"))
+
+
+def describe_data_dir() -> dict[str, str]:
+    """Facts about the resolved dataset, for `/api/health`.
+
+    Computed on demand rather than cached, so the report stays truthful even
+    after `capabilities.reset()`. A shadowed or partial `data/` tree shows up as
+    `data_dir_complete: false` instead of silently emptying the department list.
+    """
+    missing = [rel for rel in REQUIRED_DATA_FILES if not (DATA_DIR / rel).is_file()]
+    return {
+        "data_dir": str(DATA_DIR),
+        "data_dir_complete": str(not missing).lower(),
+        "data_dir_missing": ",".join(missing) or "none",
+    }
 
 
 def resolve_state_dir(state_dir: str | Path | None = None) -> Path:
@@ -160,6 +203,7 @@ class DualStore:
             requested=requested.value,
             note=self._backend_note,
             stateDir=str(getattr(self._durable, "base", "")) or None,
+            dataDir=str(DATA_DIR),
         )
         capabilities.note("store_backend", self._backend_name)
         capabilities.note("store_note", self._backend_note)

@@ -1,0 +1,17 @@
+{
+  "finance-strict": {
+    "id": "finance-strict",
+    "name": "Finance Department Strict Policy",
+    "allow": ["financial.read", "invoice.read", "vendor-risk.read"],
+    "deny": ["payment.write", "bank-account.read", "payroll.write"],
+    "approvalRequired": [
+      {
+        "tool": "create_payment",
+        "threshold": 100000,
+        "currency": "INR",
+        "reason": "Payments above threshold require human approval"
+      }
+    ]
+  }
+}
+

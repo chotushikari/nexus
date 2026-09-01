@@ -57,10 +57,13 @@ class FirestoreStore:
             ) from exc
 
         try:
+            from google.auth.exceptions import GoogleAuthError
+
             self.client = firestore.Client(project=project, database=database)
-        except (OSError, ValueError, RuntimeError) as exc:
-            # Includes DefaultCredentialsError (a subclass of Exception in
-            # google.auth); the narrow tuple keeps genuine bugs visible.
+        except (OSError, ValueError, RuntimeError, GoogleAuthError) as exc:
+            # GoogleAuthError covers DefaultCredentialsError (no ADC), which
+            # is *not* a subclass of the other three — without it, `auto`
+            # store selection crashes startup instead of degrading.
             raise FirestoreUnavailableError(f"firestore client init failed: {exc}") from exc
 
         self.project = project

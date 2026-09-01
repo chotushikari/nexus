@@ -49,6 +49,7 @@ class CapabilityRegistry:
 
     def report(self) -> CapabilityReport:
         from nexus_api.services import adk_runtime, planner
+        from nexus_api.services.storage import describe_data_dir, store
 
         gemini_installed, gemini_note = planner.gemini_sdk_status()
         adk_installed, adk_note = adk_runtime.adk_sdk_status()
@@ -67,6 +68,10 @@ class CapabilityRegistry:
         notes["gemini_model"] = settings.gemini_model
         notes["planner_enabled"] = str(settings.enable_gemini_planner).lower()
         notes["adk_enabled"] = str(settings.enable_adk).lower()
+        # Recomputed every call so these stay true across a registry reset.
+        notes["store_backend"] = store.backend
+        notes["store_note"] = store.backend_note or "n/a"
+        notes.update(describe_data_dir())
 
         return CapabilityReport(
             # `true` only when a real call succeeded in this process.

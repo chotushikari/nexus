@@ -1,368 +1,711 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, AgentCard } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Brain,
+  Database,
+  Fingerprint,
+  Gavel,
+  KeyRound,
+  Route,
+  Users,
+  Wrench,
+} from "lucide-react";
+import {
+  api,
+  type AgentCard,
+  type Mission,
+  type MissionTask,
+  type NexusEvent,
+} from "@/lib/api";
+import {
+  eventTone,
+  fmtDateTime,
+  fmtRelative,
+  fmtTime,
+  humanize,
+  initials,
+  MEMORY_EVENT_TYPES,
+  metaString,
+  POLICY_EVENT_TYPES,
+  policyOutcomeTone,
+  riskTone,
+  rosterStatusTone,
+  runtimeTone,
+  taskTone,
+  TIER_DESCRIPTIONS,
+  TIER_LABELS,
+  tierLabel,
+  toneVar,
+} from "@/lib/format";
+import {
+  Badge,
+  CodeBlock,
+  Disclosure,
+  EmptyState,
+  ErrorState,
+  KeyValue,
+  LoadingState,
+  PageHeader,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  SearchInput,
+  SectionLabel,
+  SegmentedControl,
+  TagList,
+} from "@/components/ui";
 
-const TIER_LABELS: Record<number, string> = { 1: "Core", 2: "Extended", 3: "Registry" };
-const TIER_COLORS: Record<number, string> = {
-  1: "#6366f1",
-  2: "#06b6d4",
-  3: "#64748b",
-};
-const STATUS_COLORS: Record<string, string> = {
-  approved: "#10b981",
-  experimental: "#f59e0b",
-  retired: "#64748b",
-  registered_only: "#7c3aed",
-};
+/**
+ * WORKFORCE — the agent registry and inspector.
+ *
+ * The inspector answers four questions in reading order: who is this agent,
+ * what is it doing right now, what can it do, and what may it touch. Every
+ * value on screen comes from the backend; nothing is inferred for effect.
+ */
 
-function AgentRow({
+const ACTIVE_TASK_STATUSES = new Set(["in_progress", "ready", "blocked"]);
+const TIER_ORDER = [1, 2, 3];
+
+type TierFilter = "all" | 1 | 2 | 3;
+
+interface CurrentWork {
+  mission: Mission;
+  task: MissionTask;
+}
+
+/** The task this agent is closest to owning right now: an in-flight task wins,
+ *  otherwise the most recently started one. */
+function findCurrentWork(missions: Mission[], agentId: string): CurrentWork | null {
+  let best: CurrentWork | null = null;
+  const rank = (work: CurrentWork) => {
+    const active = ACTIVE_TASK_STATUSES.has(work.task.status) ? 1 : 0;
+    const startedAt = work.task.startedAt ?? work.mission.createdAt;
+    return { active, time: new Date(startedAt).getTime() || 0 };
+  };
+
+  for (const mission of missions) {
+    for (const task of mission.tasks ?? []) {
+      if (task.agentId !== agentId) continue;
+      const candidate: CurrentWork = { mission, task };
+      if (!best) {
+        best = candidate;
+        continue;
+      }
+      const a = rank(candidate);
+      const b = rank(best);
+      if (a.active > b.active || (a.active === b.active && a.time > b.time)) {
+        best = candidate;
+      }
+    }
+  }
+  return best;
+}
+
+/** Most recent runtime status the backend recorded for this agent. */
+function findRuntimeStatus(missions: Mission[], agentId: string): string {
+  let latest: { status: string; time: number } | null = null;
+  for (const mission of missions) {
+    const status = mission.agentStates?.[agentId];
+    if (!status) continue;
+    const time = new Date(mission.updatedAt ?? mission.createdAt).getTime() || 0;
+    if (!latest || time > latest.time) latest = { status, time };
+  }
+  return latest?.status ?? "IDLE";
+}
+
+// ── Roster list ────────────────────────────────────────────────────────────
+
+function RosterRow({
   agent,
+  runtime,
   selected,
-  onClick,
+  onSelect,
 }: {
   agent: AgentCard;
+  runtime: string;
   selected: boolean;
-  onClick: () => void;
+  onSelect: () => void;
 }) {
-  const tc = TIER_COLORS[agent.tier] ?? "#64748b";
-  const sc = STATUS_COLORS[agent.status] ?? "#64748b";
   return (
-    <div
-      onClick={onClick}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
-      style={{
-        background: selected ? "var(--nexus-surface-2)" : "transparent",
-        border: `1px solid ${selected ? tc + "66" : "transparent"}`,
-      }}
-      onMouseEnter={(e) => {
-        if (!selected)
-          (e.currentTarget as HTMLElement).style.background = "var(--nexus-surface-2)";
-      }}
-      onMouseLeave={(e) => {
-        if (!selected) (e.currentTarget as HTMLElement).style.background = "transparent";
-      }}
-    >
-      {/* Avatar */}
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
-        style={{
-          background: tc + "22",
-          color: tc,
-          border: `1px solid ${tc}44`,
-        }}
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={selected ? "true" : undefined}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-left transition-colors ${
+          selected ? "bg-paper-2" : "hover:bg-paper-2/60"
+        }`}
       >
-        {agent.name.split(" ").map((n) => n[0]).join("")}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm truncate" style={{ color: "var(--nexus-text)" }}>
-          {agent.name}
-        </div>
-        <div className="text-xs truncate" style={{ color: "var(--nexus-muted)" }}>
-          {agent.role}
-        </div>
-      </div>
-
-      {/* Badges */}
-      <div className="flex flex-col items-end gap-1">
         <span
-          className="text-xs px-1.5 py-0.5 rounded-full font-medium"
-          style={{
-            background: tc + "22",
-            color: tc,
-            border: `1px solid ${tc}44`,
-          }}
+          className="w-8 h-8 rounded flex items-center justify-center t-small font-semibold flex-none bg-paper-2 border border-paper-3 text-ink-1"
+          aria-hidden="true"
+          style={selected ? { borderColor: "var(--paper-4)" } : undefined}
         >
-          T{agent.tier}
+          {initials(agent.name)}
         </span>
-        <span
-          className="text-xs px-1.5 py-0.5 rounded-full"
-          style={{
-            background: sc + "22",
-            color: sc,
-          }}
-        >
-          {agent.status.replace("_", " ")}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function AgentDetail({ agent }: { agent: AgentCard }) {
-  const tc = TIER_COLORS[agent.tier] ?? "#64748b";
-  return (
-    <div className="space-y-4 fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black"
-          style={{
-            background: `linear-gradient(135deg, ${tc}44, ${tc}22)`,
-            color: tc,
-            border: `2px solid ${tc}66`,
-            boxShadow: `0 0 24px ${tc}44`,
-          }}
-        >
-          {agent.name.split(" ").map((n) => n[0]).join("")}
-        </div>
-        <div>
-          <h2 className="text-xl font-bold" style={{ color: "var(--nexus-text)" }}>
+        <span className="flex-1 min-w-0">
+          <span className="block t-body font-semibold text-ink-0 truncate">
             {agent.name}
-          </h2>
-          <div className="text-sm" style={{ color: "var(--nexus-muted)" }}>
-            {agent.codename} · {agent.role}
-          </div>
-          <div className="text-xs mt-1" style={{ color: "var(--nexus-muted)" }}>
-            Dept: {agent.departmentId} · Tier {agent.tier} ({TIER_LABELS[agent.tier]})
+          </span>
+          <span className="block t-small text-ink-2 truncate">{agent.role}</span>
+        </span>
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-none"
+          style={{ background: toneVar(runtimeTone(runtime)) }}
+          aria-hidden="true"
+        />
+        <span className="sr-only">{humanize(runtime)}</span>
+      </button>
+    </li>
+  );
+}
+
+// ── Inspector sections ─────────────────────────────────────────────────────
+
+function InspectorSection({
+  icon: Icon,
+  label,
+  count,
+  aside,
+  children,
+}: {
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  label: string;
+  count?: number;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="pt-5 mt-5 border-t border-paper-3 first:pt-0 first:mt-0 first:border-t-0">
+      <SectionLabel count={count} aside={aside} className="mb-3">
+        <span className="inline-flex items-center gap-1.5">
+          <Icon size={12} strokeWidth={2} aria-hidden="true" />
+          {label}
+        </span>
+      </SectionLabel>
+      {children}
+    </section>
+  );
+}
+
+function CurrentWorkPanel({ work }: { work: CurrentWork | null }) {
+  if (!work) {
+    return (
+      <p className="t-small text-ink-2">
+        No task assigned. This agent is not participating in any recorded mission.
+      </p>
+    );
+  }
+  const { mission, task } = work;
+  const elapsed = task.startedAt ? fmtRelative(task.startedAt) : null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="t-body font-semibold text-ink-0">{task.title}</div>
+          <div className="t-small text-ink-2 mt-0.5">
+            Mission <span className="t-mono">{mission.title}</span>
           </div>
         </div>
+        <Badge tone={taskTone(task.status)}>{humanize(task.status)}</Badge>
       </div>
 
-      {/* Tagline */}
-      {agent.persona?.tagline && (
+      <KeyValue
+        labelWidth="8rem"
+        rows={[
+          { label: "Task id", value: task.id, mono: true },
+          { label: "Mission id", value: mission.id, mono: true },
+          {
+            label: "Attempts",
+            value: `${task.attempts} of ${task.maxAttempts}`,
+            mono: true,
+          },
+          {
+            label: "Depends on",
+            value:
+              task.dependsOn.length > 0 ? (
+                <TagList items={task.dependsOn} mono />
+              ) : (
+                <span className="t-small text-ink-3">Nothing — this task can start immediately</span>
+              ),
+          },
+          {
+            label: "Tools in task",
+            value:
+              task.tools.length > 0 ? (
+                <TagList items={task.tools} mono suffix="()" />
+              ) : (
+                <span className="t-small text-ink-3">No tool calls declared</span>
+              ),
+          },
+          { label: "Started", value: elapsed, mono: true },
+          {
+            label: "Pending tool",
+            value: task.pendingTool ? `${task.pendingTool}()` : null,
+            mono: true,
+          },
+          {
+            label: "Awaiting approval",
+            value: task.awaitingApprovalId,
+            mono: true,
+          },
+        ]}
+      />
+
+      {task.reasoning && (
+        <div>
+          <SectionLabel className="mb-1.5">
+            Reasoning
+            {task.reasoningRuntime ? ` · ${task.reasoningRuntime}` : ""}
+          </SectionLabel>
+          <p className="t-small text-ink-1 inset p-3">{task.reasoning}</p>
+        </div>
+      )}
+
+      {task.error && (
         <div
-          className="px-4 py-3 rounded-xl text-sm italic"
-          style={{
-            background: tc + "11",
-            borderLeft: `3px solid ${tc}`,
-            color: "var(--nexus-text)",
-          }}
+          className="inset p-3 t-small"
+          style={{ borderLeftWidth: 2, borderLeftColor: toneVar("danger") }}
         >
-          "{agent.persona.tagline}"
-        </div>
-      )}
-
-      {/* Identity */}
-      <div>
-        <div className="text-xs font-semibold uppercase mb-2" style={{ color: "var(--nexus-muted)" }}>
-          Identity
-        </div>
-        <div
-          className="rounded-xl p-3 text-xs font-mono"
-          style={{
-            background: "#0a0f1e",
-            border: "1px solid var(--nexus-border)",
-            color: "#94a3b8",
-          }}
-        >
-          <div>principal: <span style={{ color: tc }}>{agent.identity.principal}</span></div>
-          <div>riskLevel: {agent.identity.riskLevel}</div>
-          <div>scopes: [{agent.identity.scopes.join(", ")}]</div>
-        </div>
-      </div>
-
-      {/* Capabilities */}
-      {agent.capabilities.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold uppercase mb-2" style={{ color: "var(--nexus-muted)" }}>
-            Capabilities ({agent.capabilities.length})
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {agent.capabilities.map((cap) => (
-              <span
-                key={cap}
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: tc + "22",
-                  color: tc,
-                  border: `1px solid ${tc}33`,
-                }}
-              >
-                {cap}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tools */}
-      {agent.tools.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold uppercase mb-2" style={{ color: "var(--nexus-muted)" }}>
-            Tools ({agent.tools.length})
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {agent.tools.map((t) => (
-              <span
-                key={t}
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: "rgba(100,116,139,0.2)",
-                  color: "#94a3b8",
-                  border: "1px solid rgba(100,116,139,0.3)",
-                  fontFamily: "monospace",
-                }}
-              >
-                {t}()
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Personality traits */}
-      {agent.persona?.personality?.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold uppercase mb-2" style={{ color: "var(--nexus-muted)" }}>
-            Personality
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {agent.persona.personality.map((p) => (
-              <span
-                key={p}
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: "rgba(139,92,246,0.15)",
-                  color: "#8b5cf6",
-                  border: "1px solid rgba(139,92,246,0.3)",
-                }}
-              >
-                {p}
-              </span>
-            ))}
-          </div>
+          <span className="t-label">Error</span>
+          <div className="text-ink-1 mt-1">{task.error}</div>
         </div>
       )}
     </div>
   );
 }
 
-export default function AgentsPage() {
+function ActivityList({ events, emptyHint }: { events: NexusEvent[]; emptyHint: string }) {
+  if (events.length === 0) {
+    return <p className="t-small text-ink-2">{emptyHint}</p>;
+  }
+  return (
+    <ol className="space-y-2.5 list-none">
+      {events.map((event) => (
+        <li key={event.id} className="flex gap-3">
+          <span
+            className="w-1.5 h-1.5 rounded-full mt-1.5 flex-none"
+            style={{ background: toneVar(eventTone(event.type)) }}
+            aria-hidden="true"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="t-small font-semibold text-ink-0">
+                {humanize(event.type)}
+              </span>
+              <span className="t-mono text-ink-3 ml-auto">{fmtTime(event.timestamp)}</span>
+            </div>
+            <div className="t-small text-ink-2">{event.summary}</div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PolicyDecisionList({ events }: { events: NexusEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <p className="t-small text-ink-2">
+        No policy evaluation recorded yet. Every tool call this agent attempts is
+        checked before it runs.
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-2 list-none">
+      {events.map((event) => {
+        const outcome =
+          metaString(event.metadata, "outcome") ??
+          (event.type === "POLICY_BLOCKED" ? "DENY" : "ALLOW");
+        const tool = metaString(event.metadata, "tool");
+        const capability = metaString(event.metadata, "capability");
+        const policyId = metaString(event.metadata, "policyId");
+        const reason = metaString(event.metadata, "reason");
+        return (
+          <li key={event.id} className="inset p-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge tone={policyOutcomeTone(outcome)}>{humanize(outcome)}</Badge>
+              {tool && <span className="t-mono text-ink-0">{tool}()</span>}
+              <span className="t-mono text-ink-3 ml-auto">{fmtTime(event.timestamp)}</span>
+            </div>
+            <KeyValue
+              className="mt-2"
+              labelWidth="6.5rem"
+              rows={[
+                { label: "Capability", value: capability, mono: true },
+                { label: "Policy", value: policyId, mono: true },
+                { label: "Reason", value: humanize(reason) },
+              ]}
+            />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function AgentInspector({
+  agent,
+  missions,
+  events,
+}: {
+  agent: AgentCard;
+  missions: Mission[];
+  events: NexusEvent[];
+}) {
+  const work = useMemo(() => findCurrentWork(missions, agent.id), [missions, agent.id]);
+  const runtime = useMemo(() => findRuntimeStatus(missions, agent.id), [missions, agent.id]);
+
+  const agentEvents = useMemo(
+    () =>
+      events
+        .filter((e) => e.agentId === agent.id || e.targetAgentId === agent.id)
+        .slice()
+        .reverse(),
+    [events, agent.id],
+  );
+  const memoryEvents = useMemo(
+    () => agentEvents.filter((e) => (MEMORY_EVENT_TYPES as readonly string[]).includes(e.type)),
+    [agentEvents],
+  );
+  const policyEvents = useMemo(
+    () =>
+      agentEvents
+        .filter((e) => (POLICY_EVENT_TYPES as readonly string[]).includes(e.type))
+        .slice(0, 8),
+    [agentEvents],
+  );
+  /** Policy ids this agent has actually been evaluated against. */
+  const observedPolicies = useMemo(() => {
+    const ids = new Set<string>(agent.policies ?? []);
+    for (const event of policyEvents) {
+      const id = metaString(event.metadata, "policyId");
+      if (id) ids.add(id);
+    }
+    return [...ids];
+  }, [agent.policies, policyEvents]);
+
+  const recentActivity = agentEvents.slice(0, 10);
+
+  return (
+    <div className="fade-in">
+      {/* Identity header */}
+      <div className="flex items-start gap-4 px-5 py-5 border-b border-paper-3">
+        <span
+          className="w-12 h-12 rounded flex items-center justify-center t-title flex-none bg-paper-2 border border-paper-3 text-ink-0"
+          aria-hidden="true"
+        >
+          {initials(agent.name)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="t-display text-ink-0 text-[20px]">{agent.name}</h2>
+          <div className="t-body text-ink-1 mt-0.5">{agent.role}</div>
+          {agent.persona?.tagline && (
+            <p className="t-small text-ink-2 mt-2 max-w-xl">{agent.persona.tagline}</p>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-1.5 flex-none">
+          <Badge tone={runtimeTone(runtime)}>{humanize(runtime)}</Badge>
+          <Badge tone={rosterStatusTone(agent.status)}>{humanize(agent.status)}</Badge>
+        </div>
+      </div>
+
+      <div className="px-5 py-5">
+        <InspectorSection icon={Fingerprint} label="Identity">
+          <KeyValue
+            rows={[
+              { label: "Agent id", value: agent.id, mono: true },
+              { label: "Codename", value: agent.codename },
+              { label: "Principal", value: agent.identity.principal, mono: true },
+              {
+                label: "Risk level",
+                value: (
+                  <Badge tone={riskTone(agent.identity.riskLevel)}>
+                    {humanize(agent.identity.riskLevel)}
+                  </Badge>
+                ),
+              },
+              { label: "Department", value: humanize(agent.departmentId) },
+              {
+                label: "Tier",
+                value: `${agent.tier} · ${tierLabel(agent.tier)} — ${
+                  TIER_DESCRIPTIONS[agent.tier] ?? ""
+                }`,
+              },
+              { label: "Version", value: agent.version, mono: true },
+              { label: "Owner", value: agent.owner },
+            ]}
+          />
+        </InspectorSection>
+
+        <InspectorSection icon={Route} label="Current work">
+          <CurrentWorkPanel work={work} />
+        </InspectorSection>
+
+        <InspectorSection
+          icon={Brain}
+          label="Capabilities"
+          count={agent.capabilities.length}
+        >
+          <TagList
+            items={agent.capabilities}
+            mono
+            emptyLabel="No capabilities declared on the agent card."
+          />
+        </InspectorSection>
+
+        <InspectorSection icon={Wrench} label="Tools" count={agent.tools.length}>
+          <TagList
+            items={agent.tools}
+            mono
+            suffix="()"
+            emptyLabel="Registered without live tool bindings — this agent cannot call tools."
+          />
+        </InspectorSection>
+
+        <InspectorSection
+          icon={KeyRound}
+          label="Access policy"
+          count={agent.identity.scopes.length}
+        >
+          <div className="space-y-3">
+            <div>
+              <div className="t-small text-ink-2 mb-1.5">
+                Granted scopes. A tool call outside this set is denied before it runs.
+              </div>
+              <TagList items={agent.identity.scopes} mono emptyLabel="No scopes granted." />
+            </div>
+            {(agent.dataScopes?.length ?? 0) > 0 && (
+              <div>
+                <div className="t-small text-ink-2 mb-1.5">Data scopes</div>
+                <TagList items={agent.dataScopes ?? []} mono />
+              </div>
+            )}
+            <div>
+              <div className="t-small text-ink-2 mb-1.5">Policies bound to this principal</div>
+              <TagList
+                items={observedPolicies}
+                mono
+                emptyLabel="Default deny — no named policy has been applied yet."
+              />
+            </div>
+          </div>
+        </InspectorSection>
+
+        <InspectorSection icon={Gavel} label="Policy decisions" count={policyEvents.length}>
+          <PolicyDecisionList events={policyEvents} />
+        </InspectorSection>
+
+        <InspectorSection icon={Database} label="Memory access" count={memoryEvents.length}>
+          <ActivityList
+            events={memoryEvents.slice(0, 8)}
+            emptyHint="No memory read or write recorded for this agent."
+          />
+        </InspectorSection>
+
+        <InspectorSection icon={Activity} label="Recent activity" count={agentEvents.length}>
+          <ActivityList
+            events={recentActivity}
+            emptyHint="No recorded activity. This agent has not been invoked."
+          />
+          {agentEvents.length > 0 && (
+            <Disclosure summary={`Raw event payloads (${recentActivity.length})`}>
+              <CodeBlock value={recentActivity} maxHeight="22rem" />
+            </Disclosure>
+          )}
+        </InspectorSection>
+
+        {agent.unusualOperatorFit && (
+          <InspectorSection icon={Users} label="Unusual operator fit">
+            <p className="t-small text-ink-1">{agent.unusualOperatorFit}</p>
+          </InspectorSection>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
+
+export default function WorkforcePage() {
   const [agents, setAgents] = useState<AgentCard[]>([]);
-  const [selected, setSelected] = useState<AgentCard | null>(null);
-  const [filter, setFilter] = useState<"all" | 1 | 2 | 3>("all");
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [events, setEvents] = useState<NexusEvent[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tier, setTier] = useState<TierFilter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.listAgents().then((data) => {
-      setAgents(data);
-      setSelected(data[0] ?? null);
+  const load = useCallback(async () => {
+    try {
+      const [roster, missionList, eventList] = await Promise.all([
+        api.listAgents(),
+        api.listMissions(),
+        api.listEvents(),
+      ]);
+      setAgents(roster);
+      setMissions(missionList);
+      setEvents(eventList);
+      setError(null);
+      setLastLoadedAt(new Date().toISOString());
+      setSelectedId((current) => current ?? roster[0]?.id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
 
-  const filtered = agents.filter((a) => {
-    const matchesTier = filter === "all" || a.tier === filter;
-    const matchesSearch =
-      search === "" ||
-      a.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.role.toLowerCase().includes(search.toLowerCase()) ||
-      a.codename.toLowerCase().includes(search.toLowerCase());
-    return matchesTier && matchesSearch;
-  });
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return agents.filter((agent) => {
+      if (tier !== "all" && agent.tier !== tier) return false;
+      if (needle === "") return true;
+      return [
+        agent.name,
+        agent.role,
+        agent.codename,
+        agent.departmentId,
+        ...agent.capabilities,
+        ...agent.tools,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [agents, tier, search]);
+
+  const grouped = useMemo(
+    () =>
+      TIER_ORDER.map((t) => ({
+        tier: t,
+        agents: filtered.filter((agent) => agent.tier === t),
+      })).filter((group) => group.agents.length > 0),
+    [filtered],
+  );
+
+  const selected = agents.find((agent) => agent.id === selectedId) ?? null;
+  const tierCounts = useMemo(
+    () => ({
+      all: agents.length,
+      1: agents.filter((a) => a.tier === 1).length,
+      2: agents.filter((a) => a.tier === 2).length,
+      3: agents.filter((a) => a.tier === 3).length,
+    }),
+    [agents],
+  );
 
   return (
     <div className="max-w-7xl mx-auto fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--nexus-text)" }}>
-          Agent Roster
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--nexus-muted)" }}>
-          {agents.length} enterprise agents across 3 tiers
-        </p>
-      </div>
+      <PageHeader
+        title="Workforce"
+        subtitle="Every agent registered to this enterprise, the authority it holds, and what it is doing right now."
+        actions={
+          <div className="t-label">
+            {agents.length} agents · {grouped.length || TIER_ORDER.length} tiers
+          </div>
+        }
+      />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {/* List */}
-        <div
-          className="xl:col-span-1 rounded-xl"
-          style={{
-            background: "var(--nexus-surface)",
-            border: "1px solid var(--nexus-border)",
-          }}
-        >
-          {/* Filters */}
-          <div className="p-3 border-b space-y-2" style={{ borderColor: "var(--nexus-border)" }}>
-            <input
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-5 items-start">
+        {/* Roster */}
+        <Panel className="overflow-hidden xl:sticky xl:top-20">
+          <div className="p-3 border-b border-paper-3 space-y-2">
+            <SearchInput
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search agents…"
-              className="w-full px-3 py-1.5 rounded-lg text-sm outline-none"
-              style={{
-                background: "var(--nexus-surface-2)",
-                border: "1px solid var(--nexus-border)",
-                color: "var(--nexus-text)",
-              }}
+              onChange={setSearch}
+              placeholder="Search name, role, capability, tool"
+              label="Search the workforce"
             />
-            <div className="flex gap-1">
-              {(["all", 1, 2, 3] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setFilter(t)}
-                  className="flex-1 py-1 rounded-lg text-xs font-medium transition-all"
-                  style={{
-                    background:
-                      filter === t
-                        ? t === "all"
-                          ? "rgba(99,102,241,0.2)"
-                          : TIER_COLORS[t as number] + "22"
-                        : "transparent",
-                    color:
-                      filter === t
-                        ? t === "all"
-                          ? "#6366f1"
-                          : TIER_COLORS[t as number]
-                        : "var(--nexus-muted)",
-                    border: `1px solid ${
-                      filter === t
-                        ? t === "all"
-                          ? "rgba(99,102,241,0.4)"
-                          : TIER_COLORS[t as number] + "44"
-                        : "transparent"
-                    }`,
-                  }}
-                >
-                  {t === "all" ? "All" : `T${t}`}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              label="Filter by tier"
+              grow
+              value={tier}
+              onChange={setTier}
+              options={[
+                { value: "all" as TierFilter, label: "All", count: tierCounts.all },
+                { value: 1 as TierFilter, label: TIER_LABELS[1], count: tierCounts[1] },
+                { value: 2 as TierFilter, label: TIER_LABELS[2], count: tierCounts[2] },
+                { value: 3 as TierFilter, label: TIER_LABELS[3], count: tierCounts[3] },
+              ]}
+            />
           </div>
 
-          {/* Agent list */}
-          <div className="p-2 overflow-y-auto" style={{ maxHeight: "65vh" }}>
-            {loading ? (
-              <div className="text-center py-8 text-sm" style={{ color: "var(--nexus-muted)" }}>
-                Loading agents…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-8 text-sm" style={{ color: "var(--nexus-muted)" }}>
-                No agents match.
-              </div>
+          <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 16rem)" }}>
+            {loading && agents.length === 0 ? (
+              <LoadingState label="Loading roster" />
+            ) : error && agents.length === 0 ? (
+              <ErrorState message={error} onRetry={load} />
+            ) : grouped.length === 0 ? (
+              <EmptyState
+                compact
+                icon={Users}
+                title="No agents match"
+                hint="Clear the search or widen the tier filter."
+              />
             ) : (
-              filtered.map((a) => (
-                <AgentRow
-                  key={a.id}
-                  agent={a}
-                  selected={selected?.id === a.id}
-                  onClick={() => setSelected(a)}
-                />
+              grouped.map((group) => (
+                <div key={group.tier} className="px-2 py-2">
+                  <SectionLabel count={group.agents.length} className="px-2 pb-1.5">
+                    Tier {group.tier} · {tierLabel(group.tier)}
+                  </SectionLabel>
+                  <ul className="list-none space-y-0.5">
+                    {group.agents.map((agent) => (
+                      <RosterRow
+                        key={agent.id}
+                        agent={agent}
+                        runtime={findRuntimeStatus(missions, agent.id)}
+                        selected={selected?.id === agent.id}
+                        onSelect={() => setSelectedId(agent.id)}
+                      />
+                    ))}
+                  </ul>
+                </div>
               ))
             )}
           </div>
-        </div>
+        </Panel>
 
-        {/* Detail */}
-        <div
-          className="xl:col-span-2 rounded-xl p-6 overflow-y-auto"
-          style={{
-            background: "var(--nexus-surface)",
-            border: "1px solid var(--nexus-border)",
-            maxHeight: "80vh",
-          }}
-        >
+        {/* Inspector */}
+        <Panel className="overflow-hidden">
           {selected ? (
-            <AgentDetail agent={selected} />
+            <AgentInspector agent={selected} missions={missions} events={events} />
+          ) : loading ? (
+            <LoadingState label="Loading agent" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={load} />
           ) : (
-            <div className="text-center py-16 text-sm" style={{ color: "var(--nexus-muted)" }}>
-              Select an agent to view details.
-            </div>
+            <>
+              <PanelHeader title="Agent inspector" subtitle="Select an agent from the roster." />
+              <PanelBody>
+                <EmptyState
+                  icon={Users}
+                  title="No agent selected"
+                  hint="Pick an agent to see its identity, authority, current task and audit trail."
+                />
+              </PanelBody>
+            </>
           )}
-        </div>
+        </Panel>
       </div>
+
+      <p className="t-small text-ink-3 mt-4">
+        {lastLoadedAt
+          ? `Last refreshed ${fmtDateTime(lastLoadedAt)} · roster, missions and events are re-read every 5 seconds`
+          : "Reading roster, missions and events…"}
+      </p>
     </div>
   );
 }

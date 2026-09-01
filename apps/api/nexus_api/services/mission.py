@@ -322,12 +322,27 @@ class MissionService:
             )
 
             mission = store.get_mission(mission_id)
-            for outcome in outcomes:
-                if isinstance(outcome, BaseException):
-                    logger.error(
-                        "mission.task_runner_crashed",
-                        missionId=mission_id,
-                        reason=f"{type(outcome).__name__}: {outcome}",
+            for scheduled, outcome in zip(batch, outcomes):
+                if not isinstance(outcome, BaseException):
+                    continue
+                if isinstance(outcome, asyncio.CancelledError):
+                    # Preserve cancellation semantics for the whole runner.
+                    raise outcome
+                logger.error(
+                    "mission.task_runner_crashed",
+                    missionId=mission_id,
+                    taskId=scheduled.id,
+                    reason=f"{type(outcome).__name__}: {outcome}",
+                )
+                # An unexpected crash must not leave the node stuck in
+                # `in_progress`: `_settle` defers while any task is in flight, so
+                # a dead runner would otherwise hang the mission forever.
+                crashed = mission.task_by_id(scheduled.id)
+                if crashed is not None and crashed.status == TaskStatus.in_progress:
+                    self._fail_task(
+                        mission,
+                        crashed,
+                        f"task runner crashed: {type(outcome).__name__}: {outcome}",
                     )
             self._sync_projection(mission)
             store.save_mission(mission)
@@ -348,12 +363,41 @@ class MissionService:
 
     def _settle(self, mission_id: str) -> None:
         mission = store.get_mission(mission_id)
-        if mission.status in (MissionStatus.completed, MissionStatus.failed):
+        if mission.status in (
+            MissionStatus.completed,
+            MissionStatus.failed,
+            MissionStatus.terminated,
+        ):
             self._sync_projection(mission)
             store.save_mission(mission)
             return
 
-        if mission.awaitingApprovalId is not None and not is_terminal(mission.tasks):
+        # A task can still be in flight here: the operator may grant an approval
+        # while this wave is finishing, which flips the parked task back to
+        # `in_progress` and queues a resume runner behind this one. Declaring the
+        # mission stuck in that window would fail a mission that is about to make
+        # progress, so defer and let the runner that owns the task settle it.
+        if any(task.status == TaskStatus.in_progress for task in mission.tasks):
+            mission.status = MissionStatus.running
+            self._sync_projection(mission)
+            store.save_mission(mission)
+            logger.info(
+                "mission.settle_deferred",
+                missionId=mission.id,
+                reason="task_in_progress",
+                tasks=[
+                    task.id for task in mission.tasks if task.status == TaskStatus.in_progress
+                ],
+            )
+            return
+
+        # Parked branches are discovered from the graph rather than from the
+        # single `mission.awaitingApprovalId` field, so two independent tasks can
+        # await separate approvals in the same wave without the second one being
+        # forgotten and the mission being declared unrunnable.
+        parked = [task for task in mission.tasks if task.awaitingApprovalId is not None]
+        if parked and not is_terminal(mission.tasks):
+            mission.awaitingApprovalId = parked[0].awaitingApprovalId
             mission.status = MissionStatus.awaiting_approval
             self._sync_projection(mission)
             store.save_mission(mission)
@@ -362,7 +406,11 @@ class MissionService:
                 mission.id,
                 "Mission paused — operator approval required",
                 ORCHESTRATOR_AGENT_ID,
-                metadata={"approvalId": mission.awaitingApprovalId},
+                metadata={
+                    "approvalId": mission.awaitingApprovalId,
+                    "pendingApprovalIds": [task.awaitingApprovalId for task in parked],
+                    "parkedTasks": [task.id for task in parked],
+                },
             )
             return
 

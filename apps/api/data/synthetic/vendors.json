@@ -1,4 +1,23 @@
 {
+  "kestrel-components": {
+    "id": "kestrel-components",
+    "name": "Kestrel Components Ltd.",
+    "registration": "ROC-KC-2019-004417",
+    "domain": "kestrel-components.example.com",
+    "incorporatedYear": 2019,
+    "country": "IN",
+    "employees": 640,
+    "annualRevenueUsd": 28750000,
+    "cashflow": "stable",
+    "creditRating": "BBB",
+    "daysSalesOutstanding": 47,
+    "onTimeDeliveryRate": 0.94,
+    "openLitigation": 0,
+    "category": "precision industrial components",
+    "certifications": ["ISO 9001:2015", "ISO 14001:2015"],
+    "status": "synthetic_vendor_under_evaluation",
+    "note": "Synthetic data. Not a real company. Vendor under evaluation for the Meridian Industrial demo."
+  },
   "acme-technologies": {
     "id": "acme-technologies",
     "name": "ACME Technologies Pvt. Ltd.",
@@ -6,7 +25,17 @@
     "domain": "acme-tech.example.com",
     "employees": 432,
     "annualRevenueUsd": 12400000,
+    "cashflow": "stable",
     "status": "synthetic"
+  },
+  "medisupply-corp": {
+    "id": "medisupply-corp",
+    "name": "MediSupply Corp International",
+    "registration": "ROC-MS-2022-998811",
+    "domain": "medisupply.example.com",
+    "employees": 1250,
+    "annualRevenueUsd": 45000000,
+    "cashflow": "seasonal",
+    "status": "synthetic_emergency_vendor"
   }
 }
-

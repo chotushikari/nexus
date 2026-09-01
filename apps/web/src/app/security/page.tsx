@@ -1,13 +1,27 @@
 "use client";
 
+/**
+ * Security Center (§18) — detections are visible, not buried: every row is
+ * a real POLICY_BLOCKED / SECURITY_ALERT / circuit-breaker event.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { api, NexusEvent } from "@/lib/api";
+import { eventColor, fmtTime } from "@/lib/events";
 
 const THREAT_TYPES = ["SECURITY_ALERT", "POLICY_BLOCKED", "CIRCUIT_BREAKER_TRIPPED"];
 
-function fmt(ts: string) {
-  return new Date(ts).toLocaleTimeString("en-IN", { hour12: false });
-}
+const THREAT_LABEL: Record<string, string> = {
+  SECURITY_ALERT: "Security Alert",
+  POLICY_BLOCKED: "Policy Blocked",
+  CIRCUIT_BREAKER_TRIPPED: "Circuit Breaker Tripped",
+};
+
+const THREAT_CLASS: Record<string, string> = {
+  SECURITY_ALERT: "s-danger",
+  POLICY_BLOCKED: "s-danger",
+  CIRCUIT_BREAKER_TRIPPED: "s-approval",
+};
 
 export default function SecurityPage() {
   const [events, setEvents] = useState<NexusEvent[]>([]);
@@ -25,41 +39,25 @@ export default function SecurityPage() {
     return () => clearInterval(id);
   }, [refresh]);
 
-  const COLOR: Record<string, string> = {
-    SECURITY_ALERT: "#ef4444",
-    POLICY_BLOCKED: "#f59e0b",
-    CIRCUIT_BREAKER_TRIPPED: "#7c3aed",
-  };
-
   return (
-    <div className="max-w-4xl mx-auto fade-in space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 fade-in">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--nexus-text)" }}>
-          Security Console
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--nexus-muted)" }}>
+        <h1 className="t-display">Security Center</h1>
+        <p className="t-small mt-0.5" style={{ color: "var(--ink-2)" }}>
           Prompt-injection detections, policy violations, circuit-breaker events
         </p>
       </div>
 
-      {/* Threat count chips */}
-      <div className="flex gap-3">
+      {/* Threat counters */}
+      <div className="flex flex-wrap gap-3">
         {THREAT_TYPES.map((t) => {
           const count = events.filter((e) => e.type === t).length;
-          const color = COLOR[t];
           return (
-            <div
-              key={t}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
-              style={{
-                background: color + "11",
-                border: `1px solid ${color}44`,
-              }}
-            >
-              <span style={{ color }} className="font-bold text-lg">
+            <div key={t} className={`panel flex items-center gap-3 px-4 py-2.5 ${count > 0 ? "attention" : ""}`}>
+              <span className="t-display" style={{ fontSize: 20, color: eventColor(t) }}>
                 {count}
               </span>
-              <span style={{ color: "var(--nexus-muted)" }}>{t.replace(/_/g, " ")}</span>
+              <span className="t-label">{THREAT_LABEL[t]}</span>
             </div>
           );
         })}
@@ -68,94 +66,52 @@ export default function SecurityPage() {
       {/* Event list */}
       <div className="space-y-3">
         {loading ? (
-          <div className="py-12 text-center text-sm" style={{ color: "var(--nexus-muted)" }}>
+          <div className="t-small py-12 text-center" style={{ color: "var(--ink-3)" }}>
             Loading…
           </div>
         ) : events.length === 0 ? (
-          <div
-            className="py-16 text-center text-sm rounded-xl"
-            style={{
-              background: "var(--nexus-surface)",
-              border: "1px solid var(--nexus-border)",
-              color: "var(--nexus-muted)",
-            }}
-          >
-            ✅ No security events detected.
-            <div className="mt-1 text-xs">
-              Run a mission with a malicious vendor document to trigger a SECURITY_ALERT.
+          <div className="panel t-small py-16 text-center" style={{ color: "var(--ink-2)" }}>
+            No security events detected.
+            <div className="t-mono mt-1" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>
+              Run a mission with the malicious vendor document to trigger a SECURITY_ALERT.
             </div>
           </div>
         ) : (
-          events.map((e) => {
-            const color = COLOR[e.type] ?? "#ef4444";
-            return (
-              <div
-                key={e.id}
-                className="rounded-xl p-4 slide-up"
-                style={{
-                  background: "var(--nexus-surface)",
-                  border: `1px solid ${color}44`,
-                }}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span
-                    className="text-lg"
-                    role="img"
-                    aria-label={e.type}
-                  >
-                    {e.type === "SECURITY_ALERT"
-                      ? "🚨"
-                      : e.type === "POLICY_BLOCKED"
-                      ? "🛡"
-                      : "⚡"}
+          events.map((e) => (
+            <div
+              key={e.id}
+              className="panel slide-up p-4"
+              style={{ borderLeft: `3px solid ${eventColor(e.type)}` }}
+            >
+              <div className="mb-2 flex items-center gap-2.5">
+                <span className={`badge ${THREAT_CLASS[e.type] ?? "s-danger"}`}>
+                  <span className="badge-dot" />
+                  {e.type}
+                </span>
+                {e.agentId && (
+                  <span className="t-mono" style={{ fontSize: 10.5, color: "var(--ink-2)" }}>
+                    {e.agentId}
                   </span>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{
-                      background: color + "22",
-                      color,
-                      border: `1px solid ${color}55`,
-                    }}
-                  >
-                    {e.type}
-                  </span>
-                  {e.agentId && (
-                    <span className="text-xs" style={{ color: "var(--nexus-muted)" }}>
-                      {e.agentId}
-                    </span>
-                  )}
-                  <span className="ml-auto text-xs" style={{ color: "var(--nexus-muted)" }}>
-                    {fmt(e.timestamp)}
-                  </span>
-                </div>
-
-                <p className="text-sm font-medium mb-2" style={{ color: "var(--nexus-text)" }}>
-                  {e.summary}
-                </p>
-
-                {Object.keys(e.metadata).length > 0 && (
-                  <details>
-                    <summary
-                      className="text-xs cursor-pointer"
-                      style={{ color: "var(--nexus-muted)" }}
-                    >
-                      View metadata
-                    </summary>
-                    <pre
-                      className="mt-2 rounded-lg p-2 text-xs overflow-x-auto"
-                      style={{
-                        background: "#0a0f1e",
-                        border: "1px solid var(--nexus-border)",
-                        color: "#94a3b8",
-                      }}
-                    >
-                      {JSON.stringify(e.metadata, null, 2)}
-                    </pre>
-                  </details>
                 )}
+                <span className="t-mono ml-auto" style={{ fontSize: 10, color: "var(--ink-3)" }}>
+                  {fmtTime(e.timestamp)}
+                </span>
               </div>
-            );
-          })
+
+              <p className="t-body font-medium" style={{ color: "var(--ink-0)" }}>
+                {e.summary}
+              </p>
+
+              {Object.keys(e.metadata).length > 0 && (
+                <details className="mt-2">
+                  <summary className="t-small cursor-pointer" style={{ color: "var(--ink-3)" }}>
+                    Evidence
+                  </summary>
+                  <pre className="code-block mt-2">{JSON.stringify(e.metadata, null, 2)}</pre>
+                </details>
+              )}
+            </div>
+          ))
         )}
       </div>
     </div>

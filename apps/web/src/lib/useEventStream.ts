@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { NexusEvent } from "./api";
+import { NexusEvent, apiUrl } from "./api";
 
 /**
  * useEventStream — connects to the backend SSE endpoint and
@@ -14,7 +14,7 @@ export function useEventStream(missionId?: string) {
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const url = `http://localhost:8000/api/events/stream${
+    const url = `${apiUrl("/events/stream")}${
       missionId ? `?mission_id=${missionId}` : ""
     }`;
 

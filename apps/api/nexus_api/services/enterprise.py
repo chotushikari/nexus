@@ -14,6 +14,8 @@ from pydantic import ValidationError
 from nexus_api.core.config import settings
 from nexus_api.core.logging import get_logger
 from nexus_api.schemas.domain import (
+    AgentCard,
+    AgentStatus,
     DepartmentCard,
     EnterpriseCounts,
     EnterpriseSummary,
@@ -72,6 +74,19 @@ def load_departments() -> list[DepartmentCard]:
     return departments
 
 
+def _is_deployable(agent: AgentCard) -> bool:
+    """True when a roster card is marked `approved`.
+
+    `AgentCard.status` is typed `AgentStatus | str`, so it can arrive as either an
+    enum member or a bare string. `str(AgentStatus.approved)` yields
+    `'AgentStatus.approved'` for a `(str, Enum)` mixin — comparing that to
+    `'approved'` is always False, which previously reported every agent as
+    offline. Normalise through `.value` instead.
+    """
+    status = getattr(agent.status, "value", agent.status)
+    return status == AgentStatus.approved.value
+
+
 def aggregate_counts(departments: list[DepartmentCard] | None = None) -> EnterpriseCounts:
     if not store.agents:
         store.seed_agents_from_roster()
@@ -93,7 +108,7 @@ def aggregate_counts(departments: list[DepartmentCard] | None = None) -> Enterpr
 
     return EnterpriseCounts(
         agentsTotal=len(agents),
-        agentsOnline=len([agent for agent in agents if str(agent.status) == "approved"]),
+        agentsOnline=len([agent for agent in agents if _is_deployable(agent)]),
         agentsBusy=len(busy),
         missionsTotal=len(missions),
         missionsActive=len(

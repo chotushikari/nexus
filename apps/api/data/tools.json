@@ -1,0 +1,14 @@
+[
+  { "id": "company_search", "capability": "public_company.read", "riskLevel": "low", "ownerAgentId": "elena-rao" },
+  { "id": "company_profile", "capability": "research.read", "riskLevel": "low", "ownerAgentId": "elena-rao" },
+  { "id": "document_search", "capability": "document.read", "riskLevel": "medium", "ownerAgentId": "elena-rao" },
+  { "id": "sanctions_check", "capability": "sanctions.check", "riskLevel": "medium", "ownerAgentId": "marcus-chen" },
+  { "id": "compliance_check", "capability": "compliance.read", "riskLevel": "medium", "ownerAgentId": "marcus-chen" },
+  { "id": "financial_lookup", "capability": "financial.read", "riskLevel": "medium", "ownerAgentId": "david-brooks" },
+  { "id": "risk_calculator", "capability": "vendor-risk.read", "riskLevel": "medium", "ownerAgentId": "david-brooks" },
+  { "id": "create_payment", "capability": "create_payment", "riskLevel": "high", "ownerAgentId": "david-brooks", "requiresApproval": true },
+  { "id": "supplier_score", "capability": "supplier.score", "riskLevel": "medium", "ownerAgentId": "sarah-patel" },
+  { "id": "contract_generator", "capability": "contract.draft", "riskLevel": "medium", "ownerAgentId": "sarah-patel" },
+  { "id": "contract_finalize", "capability": "contract.finalize", "riskLevel": "high", "ownerAgentId": "sarah-patel", "requiresApproval": true }
+]
+

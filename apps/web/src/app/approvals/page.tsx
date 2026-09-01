@@ -1,17 +1,19 @@
 "use client";
 
+/**
+ * Executive approvals (§38). The amber decision buttons are the one place
+ * the palette reserves colour for an action.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { api, Approval } from "@/lib/api";
+import { fmtDateTime } from "@/lib/events";
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#f59e0b",
-  granted: "#10b981",
-  denied: "#ef4444",
+const STATUS_CLASS: Record<string, string> = {
+  pending: "s-approval",
+  granted: "s-success",
+  denied: "s-danger",
 };
-
-function fmt(ts: string) {
-  return new Date(ts).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "medium" });
-}
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -39,9 +41,7 @@ export default function ApprovalsPage() {
     }
   };
 
-  const filtered = approvals.filter(
-    (a) => filter === "all" || a.status === filter
-  );
+  const filtered = approvals.filter((a) => filter === "all" || a.status === filter);
 
   const counts = {
     all: approvals.length,
@@ -51,49 +51,38 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto fade-in space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--nexus-text)" }}>
-            Approval Queue
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--nexus-muted)" }}>
+          <h1 className="t-display">Approval Queue</h1>
+          <p className="t-small mt-0.5" style={{ color: "var(--ink-2)" }}>
             Human-in-the-loop governance for high-risk agent actions
           </p>
         </div>
-        <button
-          onClick={refresh}
-          className="px-3 py-1.5 rounded-lg text-sm"
-          style={{
-            background: "var(--nexus-surface-2)",
-            border: "1px solid var(--nexus-border)",
-            color: "var(--nexus-muted)",
-          }}
-        >
-          ↻ Refresh
+        <button className="btn" onClick={refresh}>
+          Refresh
         </button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(["all", "pending", "granted", "denied"] as const).map((s) => {
-          const color = s === "all" ? "#6366f1" : STATUS_COLORS[s];
           const active = filter === s;
           return (
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              className="btn"
               style={{
-                background: active ? color + "22" : "var(--nexus-surface)",
-                color: active ? color : "var(--nexus-muted)",
-                border: `1px solid ${active ? color + "55" : "var(--nexus-border)"}`,
+                background: active ? "var(--ink-0)" : "var(--paper-0)",
+                color: active ? "var(--paper-0)" : "var(--ink-1)",
+                borderColor: active ? "var(--ink-0)" : "var(--paper-4)",
               }}
             >
               {s.charAt(0).toUpperCase() + s.slice(1)}
               <span
-                className="text-xs px-1.5 py-0.5 rounded-full font-bold"
-                style={{ background: color + "33", color }}
+                className="t-mono rounded-full px-1.5"
+                style={{ fontSize: 10, background: active ? "rgba(251,248,241,0.18)" : "var(--paper-2)" }}
               >
                 {counts[s]}
               </span>
@@ -105,75 +94,56 @@ export default function ApprovalsPage() {
       {/* Approval list */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div
-            className="rounded-xl py-16 text-center text-sm"
-            style={{
-              background: "var(--nexus-surface)",
-              border: "1px solid var(--nexus-border)",
-              color: "var(--nexus-muted)",
-            }}
-          >
+          <div className="panel t-small py-16 text-center" style={{ color: "var(--ink-3)" }}>
             No {filter === "all" ? "" : filter} approvals.
           </div>
         ) : (
           filtered.map((a) => {
-            const sc = STATUS_COLORS[a.status] ?? "#64748b";
             const isPending = a.status === "pending";
             return (
               <div
                 key={a.id}
-                className="rounded-xl p-5 slide-up"
+                className="panel slide-up p-5"
                 style={{
-                  background: "var(--nexus-surface)",
-                  border: `1px solid ${isPending ? "#f59e0b44" : "var(--nexus-border)"}`,
+                  borderColor: isPending ? "var(--state-approval)" : "var(--paper-3)",
                 }}
               >
                 {/* Header row */}
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="font-bold text-base"
-                        style={{ color: "var(--nexus-text)" }}
-                      >
-                        {a.tool}
-                      </span>
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                        style={{
-                          background: sc + "22",
-                          color: sc,
-                          border: `1px solid ${sc}44`,
-                        }}
-                      >
-                        {a.status.toUpperCase()}
+                <div className="mb-3 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="t-title t-mono">{a.tool}</span>
+                      <span className={`badge ${STATUS_CLASS[a.status] ?? "s-neutral"}`}>
+                        <span className="badge-dot" />
+                        {a.status}
                       </span>
                       {isPending && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-bold"
-                          style={{
-                            background: "rgba(239,68,68,0.15)",
-                            color: "#ef4444",
-                            border: "1px solid rgba(239,68,68,0.4)",
-                          }}
-                        >
-                          🔴 HIGH RISK
+                        <span className="badge s-danger">
+                          {a.risk ? a.risk.toUpperCase() : "HIGH"} RISK
                         </span>
                       )}
                     </div>
-                    <div className="text-xs mt-1 space-x-3" style={{ color: "var(--nexus-muted)" }}>
-                      <span>Agent: <b>{a.agentId}</b></span>
-                      <span>Mission: <b>{a.missionId}</b></span>
-                      <span>Policy: {a.policyId}</span>
+                    <div className="t-small mt-1 flex flex-wrap gap-x-4" style={{ color: "var(--ink-2)" }}>
+                      <span>
+                        Agent: <b style={{ color: "var(--ink-0)" }}>{a.agentId}</b>
+                      </span>
+                      <span>
+                        Mission: <b style={{ color: "var(--ink-0)" }}>{a.missionId}</b>
+                      </span>
+                      <span>
+                        Policy: <span className="t-mono">{a.policyId}</span>
+                      </span>
                     </div>
                   </div>
-                  <div className="text-xs text-right" style={{ color: "var(--nexus-muted)" }}>
-                    <div>Requested</div>
-                    <div>{fmt(a.createdAt)}</div>
+                  <div className="t-mono flex-none text-right" style={{ fontSize: 10.5, color: "var(--ink-2)" }}>
+                    <div style={{ color: "var(--ink-3)" }}>Requested</div>
+                    <div>{fmtDateTime(a.createdAt)}</div>
                     {a.decidedAt && (
                       <>
-                        <div className="mt-1">Decided</div>
-                        <div>{fmt(a.decidedAt)}</div>
+                        <div className="mt-1" style={{ color: "var(--ink-3)" }}>
+                          Decided
+                        </div>
+                        <div>{fmtDateTime(a.decidedAt)}</div>
                       </>
                     )}
                   </div>
@@ -181,27 +151,19 @@ export default function ApprovalsPage() {
 
                 {/* Reason */}
                 <div
-                  className="text-sm mb-3 px-3 py-2 rounded-lg"
+                  className="t-body mb-3 px-3 py-2"
                   style={{
-                    background: "rgba(245,158,11,0.08)",
-                    borderLeft: "3px solid #f59e0b",
-                    color: "#fcd34d",
+                    background: "var(--wash-approval)",
+                    borderLeft: "3px solid var(--state-approval)",
+                    color: "var(--ink-0)",
+                    borderRadius: "0 var(--radius) var(--radius) 0",
                   }}
                 >
-                  ⚠ {a.reason}
+                  {a.reason}
                 </div>
 
                 {/* Request payload */}
-                <div
-                  className="rounded-lg p-3 text-xs font-mono mb-4 overflow-x-auto"
-                  style={{
-                    background: "#0a0f1e",
-                    border: "1px solid var(--nexus-border)",
-                    color: "#94a3b8",
-                  }}
-                >
-                  {JSON.stringify(a.request, null, 2)}
-                </div>
+                <pre className="code-block mb-4">{JSON.stringify(a.request, null, 2)}</pre>
 
                 {/* Actions */}
                 {isPending && (
@@ -209,53 +171,24 @@ export default function ApprovalsPage() {
                     <button
                       onClick={() => handleDecide(a.id, "granted")}
                       disabled={loading}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all"
-                      style={{
-                        background: "rgba(16,185,129,0.15)",
-                        color: "#10b981",
-                        border: "1px solid rgba(16,185,129,0.5)",
-                      }}
-                      onMouseEnter={(e) =>
-                        ((e.currentTarget as HTMLElement).style.background =
-                          "rgba(16,185,129,0.3)")
-                      }
-                      onMouseLeave={(e) =>
-                        ((e.currentTarget as HTMLElement).style.background =
-                          "rgba(16,185,129,0.15)")
-                      }
+                      className="btn btn-approve flex-1"
                     >
-                      ✓ Approve
+                      Approve
                     </button>
                     <button
                       onClick={() => handleDecide(a.id, "denied")}
                       disabled={loading}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all"
-                      style={{
-                        background: "rgba(239,68,68,0.15)",
-                        color: "#ef4444",
-                        border: "1px solid rgba(239,68,68,0.5)",
-                      }}
-                      onMouseEnter={(e) =>
-                        ((e.currentTarget as HTMLElement).style.background =
-                          "rgba(239,68,68,0.3)")
-                      }
-                      onMouseLeave={(e) =>
-                        ((e.currentTarget as HTMLElement).style.background =
-                          "rgba(239,68,68,0.15)")
-                      }
+                      className="btn btn-deny flex-1"
                     >
-                      ✕ Deny
+                      Deny
                     </button>
                   </div>
                 )}
 
                 {!isPending && a.decidedBy && (
-                  <div
-                    className="text-xs text-right"
-                    style={{ color: "var(--nexus-muted)" }}
-                  >
+                  <div className="t-small text-right" style={{ color: "var(--ink-3)" }}>
                     Decided by <b>{a.decidedBy}</b>
-                    {a.decidedAt && ` · ${fmt(a.decidedAt)}`}
+                    {a.decidedAt && ` · ${fmtDateTime(a.decidedAt)}`}
                   </div>
                 )}
               </div>

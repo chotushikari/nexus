@@ -270,6 +270,19 @@ export interface StartMissionRequest {
   vendorId?: string;
 }
 
+/** One clarifying question from the chief-of-staff pre-planning pass. */
+export interface ClarifyQuestion {
+  id: string;
+  question: string;
+  why: string;
+  suggestions: string[];
+}
+
+export interface ClarifyResult {
+  questions: ClarifyQuestion[];
+  source: "gemini" | "heuristic";
+}
+
 // ---------------------------------------------------------------------------
 // API calls
 // ---------------------------------------------------------------------------
@@ -289,6 +302,11 @@ export const api = {
   getMission: (id: string) => req<Mission>(`/missions/${id}`),
   startMission: (body: StartMissionRequest) =>
     req<Mission>("/missions", { method: "POST", body: JSON.stringify(body) }),
+  clarify: (objective: string) =>
+    req<ClarifyResult>("/missions/clarify", {
+      method: "POST",
+      body: JSON.stringify({ objective }),
+    }),
   missionEvents: (id: string) => req<NexusEvent[]>(`/missions/${id}/events`),
   missionAudit: (id: string) => req<MissionAudit>(`/missions/${id}/audit`),
 

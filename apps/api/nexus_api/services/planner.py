@@ -200,7 +200,7 @@ def _generate_sync(client: Any, prompt: str) -> str:
             response_mime_type="application/json",
             response_schema=PLAN_RESPONSE_SCHEMA,
             temperature=0.2,
-            max_output_tokens=2048,
+            max_output_tokens=4096,
         )
     except ImportError:  # pragma: no cover - SDK present but types missing
         config = {
@@ -232,7 +232,7 @@ async def _generate(client: Any, prompt: str) -> str:
                 response_mime_type="application/json",
                 response_schema=PLAN_RESPONSE_SCHEMA,
                 temperature=0.2,
-                max_output_tokens=2048,
+                max_output_tokens=4096,
             )
         except ImportError:  # pragma: no cover
             config = {"response_mime_type": "application/json"}
@@ -400,7 +400,18 @@ class MissionPlanner:
         if not roster:
             roster = {agent.id: agent for agent in store.seed_agents_from_roster()}
 
-        result = await self._plan_with_gemini(mission_id, objective, vendor_id, roster)
+        try:
+            result = await self._plan_with_gemini(mission_id, objective, vendor_id, roster)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - planning must never kill the runner
+            logger.error(
+                "planner.gemini_path_crashed",
+                missionId=mission_id,
+                reason=f"{type(exc).__name__}: {exc}",
+            )
+            capabilities.record_failure("gemini", f"crashed: {exc}")
+            result = None
         if result is None:
             result = self._plan_deterministically(objective, vendor_id, roster)
 
@@ -445,7 +456,12 @@ class MissionPlanner:
                 last_error = f"timeout after {settings.planner_timeout_seconds}s"
             except PlanValidationError as exc:
                 last_error = f"model output rejected: {'; '.join(exc.reasons)}"
-            except (ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - SDK errors (google.genai,
+                # google.api_core) are subclasses of neither ValueError nor
+                # OSError; an uncaught one killed the runner and froze the
+                # mission in planning instead of degrading to the fallback.
                 last_error = f"{type(exc).__name__}: {exc}"
             else:
                 for task in tasks:

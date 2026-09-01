@@ -16,18 +16,21 @@ import {
   Approval,
   EnterpriseSummary,
   Mission,
+  ClarifyQuestion,
   NexusEvent,
 } from "@/lib/api";
 import { useEventStream } from "@/lib/useEventStream";
 import { OfficeCanvas } from "@/components/OfficeCanvas";
+import { StatusTicker, PixelLoader, type Phase } from "@/components/StatusPhrases";
 import { STATE_LABEL } from "@/lib/pixel/palette";
 import { EVENT_COLOR, MISSION_BADGE_CLASS, fmtTime } from "@/lib/events";
 
 const SUGGESTIONS = [
-  { label: "Supplier Onboarding", text: "Evaluate Kestrel Components as a strategic supplier and prepare the onboarding package if they satisfy our policies." },
-  { label: "Security Investigation", text: "Investigate the suspicious vendor document for injection attempts and recommend containment." },
-  { label: "Board Preparation", text: "Prepare the quarterly board briefing from current enterprise and vendor data." },
-  { label: "Cost Reduction", text: "Find the largest infrastructure cost-saving opportunities across our vendor spend." },
+  { label: "Validate an idea", text: "Validate my business idea: research the market, size the opportunity, and give me a go / no-go decision memo." },
+  { label: "Know my competitors", text: "Research my top competitors: scrape their public pricing and positioning, and build a comparison landscape." },
+  { label: "Pricing that works", text: "Research market pricing for my product category and recommend a pricing strategy with rationale." },
+  { label: "Launch the GTM", text: "Build my go-to-market plan: audience, channels, first-campaign draft, and the metrics to watch." },
+  { label: "Vendor onboarding", text: "Evaluate Kestrel Components as a strategic supplier and prepare the onboarding package if they satisfy our policies." },
 ];
 
 // ─── Inspector ───────────────────────────────────────────────────────────────
@@ -165,6 +168,12 @@ export default function CommandCenterPage() {
   const [objective, setObjective] = useState("");
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [booting, setBooting] = useState(true);
+  // Chief-of-staff clarify loop: understanding → questions → refined launch.
+  const [phase, setPhase] = useState<"idle" | "understanding" | "clarify">("idle");
+  const [questions, setQuestions] = useState<ClarifyQuestion[]>([]);
+  const [clarifySource, setClarifySource] = useState<string>("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const { events, connected, agentStatus } = useEventStream();
 
@@ -175,8 +184,9 @@ export default function CommandCenterPage() {
   }, []);
 
   useEffect(() => {
-    api.enterprise().then(setEnterprise).catch(() => {});
-    api.listAgents().then(setAgents).catch(() => {});
+    Promise.all([api.enterprise().then(setEnterprise), api.listAgents().then(setAgents)])
+      .catch(() => {})
+      .finally(() => setBooting(false));
     refresh();
     const id = setInterval(refresh, 4000);
     return () => clearInterval(id);
@@ -195,24 +205,62 @@ export default function CommandCenterPage() {
     }
   };
 
-  const launch = async () => {
-    const text = objective.trim();
-    if (!text || launching) return;
+  const startMission = async (finalObjective: string) => {
     setLaunching(true);
     setError(null);
     try {
       await api.startMission({
-        objective: text,
-        title: text.length > 60 ? text.slice(0, 57) + "…" : text,
+        objective: finalObjective,
+        title: finalObjective.length > 60 ? finalObjective.slice(0, 57) + "…" : finalObjective,
         vendorId: enterprise?.defaultVendorId,
       });
       setObjective("");
+      setPhase("idle");
+      setQuestions([]);
+      setAnswers({});
       await refresh();
     } catch (e) {
       setError(String(e));
     } finally {
       setLaunching(false);
     }
+  };
+
+  const launch = async () => {
+    const text = objective.trim();
+    if (!text || launching || phase !== "idle") return;
+    // Chief-of-staff pass: understand before planning. Any failure here
+    // degrades straight to a raw launch — never a dead end for the founder.
+    setPhase("understanding");
+    setError(null);
+    try {
+      const result = await api.clarify(text);
+      if (result.questions.length === 0) {
+        await startMission(text);
+        return;
+      }
+      setQuestions(result.questions);
+      setClarifySource(result.source);
+      setPhase("clarify");
+    } catch {
+      await startMission(text);
+    }
+  };
+
+  const launchWithAnswers = async () => {
+    const text = objective.trim();
+    if (!text) return;
+    const context = questions
+      .map((q) => {
+        const a = (answers[q.id] ?? "").trim();
+        return a ? `Q: ${q.question} A: ${a}` : null;
+      })
+      .filter(Boolean)
+      .join(" | ");
+    const refined = context
+      ? `${text}\n\nFounder context from clarifying questions: ${context}`
+      : text;
+    await startMission(refined);
   };
 
   const decide = async (id: string, decision: "granted" | "denied") => {
@@ -323,8 +371,8 @@ export default function CommandCenterPage() {
                 onKeyDown={(e) => e.key === "Enter" && launch()}
                 aria-label="Mission objective"
               />
-              <button className="btn btn-primary flex-none" onClick={launch} disabled={launching || !objective.trim()}>
-                {launching ? "Planning…" : "Start Mission"}
+              <button className="btn btn-primary flex-none" onClick={launch} disabled={launching || !objective.trim() || phase !== "idle"}>
+                {phase === "understanding" ? "Understanding…" : launching ? "Planning…" : "Start Mission"}
               </button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -367,6 +415,19 @@ export default function CommandCenterPage() {
                 </span>
               </div>
             )}
+            {mission &&
+              ["planning", "running", "awaiting_approval"].includes(mission.status) && (
+                <StatusTicker
+                  compact
+                  phase={
+                    mission.status === "planning"
+                      ? "planning"
+                      : mission.status === "awaiting_approval"
+                        ? "approval"
+                        : "executing"
+                  }
+                />
+              )}
           </div>
 
           {/* Approval banners */}
@@ -406,6 +467,11 @@ export default function CommandCenterPage() {
                 selectedAgentId={selectedAgentId}
                 onSelectAgent={(id) => setSelectedAgentId(id || null)}
               />
+            ) : booting ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2">
+                <PixelLoader size={7} />
+                <StatusTicker phase="booting" />
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
@@ -416,6 +482,107 @@ export default function CommandCenterPage() {
                   <button className="btn btn-primary mt-3" onClick={seed} disabled={launching}>
                     {launching ? "Hiring…" : "Initialize Enterprise"}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Chief-of-staff clarify overlay ── */}
+            {phase !== "idle" && (
+              <div
+                className="slide-up absolute inset-3 z-40 flex items-center justify-center rounded-lg"
+                style={{ background: "rgba(235,228,212,0.72)", backdropFilter: "blur(3px)" }}
+              >
+                <div className="panel max-h-full w-full max-w-xl overflow-y-auto p-5" style={{ boxShadow: "var(--shadow-3)" }}>
+                  {phase === "understanding" || launching ? (
+                    <div className="flex flex-col items-center gap-2 py-6">
+                      <PixelLoader size={8} />
+                      <div className="t-title" style={{ fontSize: 15 }}>
+                        {launching ? "Deploying to the floor…" : "NEXUS is understanding your objective"}
+                      </div>
+                      <StatusTicker phase={launching ? "planning" : "understanding"} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <div>
+                          <div className="t-title" style={{ fontSize: 15 }}>
+                            Before the floor starts moving — a few questions
+                          </div>
+                          <div className="t-small" style={{ color: "var(--ink-2)" }}>
+                            Every answer sharpens the plan. Skip freely; answer with a chip or your own words.
+                          </div>
+                        </div>
+                        <span className="badge s-neutral t-mono flex-none" style={{ fontSize: 9.5 }}>
+                          asked by {clarifySource === "gemini" ? "gemini" : "nexus"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 space-y-4">
+                        {questions.map((q, qi) => (
+                          <div key={q.id} className="inset p-3">
+                            <div className="flex items-baseline gap-2">
+                              <span className="t-mono" style={{ fontSize: 10, color: "var(--ink-3)" }}>
+                                {String(qi + 1).padStart(2, "0")}
+                              </span>
+                              <div className="t-body font-semibold" style={{ color: "var(--ink-0)" }}>
+                                {q.question}
+                              </div>
+                            </div>
+                            {q.why && (
+                              <div className="t-small mt-0.5 italic" style={{ color: "var(--ink-3)" }}>
+                                {q.why}
+                              </div>
+                            )}
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {(q.suggestions ?? []).map((s) => {
+                                const active = answers[q.id] === s;
+                                return (
+                                  <button
+                                    key={s}
+                                    className="t-small rounded px-2 py-1 transition-colors"
+                                    style={{
+                                      background: active ? "var(--ink-0)" : "var(--paper-0)",
+                                      color: active ? "var(--paper-0)" : "var(--ink-1)",
+                                      border: `1px solid ${active ? "var(--ink-0)" : "var(--paper-4)"}`,
+                                    }}
+                                    onClick={() =>
+                                      setAnswers((prev) => ({ ...prev, [q.id]: active ? "" : s }))
+                                    }
+                                  >
+                                    {s}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <input
+                              className="input mt-2"
+                              style={{ padding: "6px 10px", fontSize: 12.5 }}
+                              placeholder="…or answer in your own words"
+                              value={answers[q.id] ?? ""}
+                              onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-2">
+                        <button
+                          className="btn btn-primary flex-1"
+                          onClick={launchWithAnswers}
+                          disabled={launching}
+                        >
+                          {launching ? "Deploying…" : "Launch with answers"}
+                        </button>
+                        <button
+                          className="btn flex-none"
+                          onClick={() => startMission(objective.trim())}
+                          disabled={launching}
+                        >
+                          Skip — just launch
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

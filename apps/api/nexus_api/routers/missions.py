@@ -1,10 +1,28 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from nexus_api.schemas.domain import Mission, StartMissionRequest
+from nexus_api.services.clarify import ClarifyResult, clarify_objective
 from nexus_api.services.mission import mission_service
 from nexus_api.services.storage import store
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
+
+
+class ClarifyRequest(BaseModel):
+    objective: str
+
+
+@router.post("/clarify", response_model=ClarifyResult)
+async def clarify(request: ClarifyRequest) -> ClarifyResult:
+    """Ask the chief-of-staff questions before planning.
+
+    Returns 3-5 sharp clarifying questions (with suggested answers) so the
+    mission graph is built on understanding instead of assumptions.
+    """
+    if not request.objective.strip():
+        raise HTTPException(status_code=422, detail="objective is required")
+    return await clarify_objective(request.objective)
 
 
 @router.post("", response_model=Mission, status_code=202)

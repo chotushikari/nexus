@@ -316,6 +316,12 @@ def _selected_stages(objective: str) -> list[str]:
     if "research" not in hits:
         # Every downstream stage needs the vendor profile first.
         hits.insert(0, "research")
+    if "procurement" in hits and ("compliance" not in hits or "finance" not in hits):
+        # Onboarding is inherently governed: the payment-setup step must be
+        # planned so the approval gate is part of the demonstrated flow (§38),
+        # never skipped because the objective text lacked finance keywords.
+        hits.append("compliance")
+        hits.append("finance")
     return [stage for stage in _STAGE_ORDER if stage in hits]
 
 

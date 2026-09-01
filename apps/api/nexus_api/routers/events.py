@@ -24,12 +24,19 @@ async def stream_events(request: Request, mission_id: str | None = None):
     """
 
     async def generator():
+        # SSE comment bytes must flow immediately: Cloud Run's proxy buffers
+        # the response head until the first body byte, and with an empty
+        # event store nothing was flushed — EventSource hung forever.
+        yield ": connected\n\n"
+
         # Send any already-existing events immediately on connect
         snapshot = store.list_events(mission_id)
         for ev in snapshot:
             yield f"data: {ev.model_dump_json()}\n\n"
 
         last_count = len(snapshot)
+        loop = asyncio.get_event_loop()
+        last_beat = loop.time()
 
         # Then stream new events as they arrive
         while True:
@@ -40,6 +47,10 @@ async def stream_events(request: Request, mission_id: str | None = None):
             for ev in new_events:
                 yield f"data: {ev.model_dump_json()}\n\n"
             last_count = len(events)
+            if loop.time() - last_beat > 15.0:
+                # Comment-only keepalive; EventSource ignores it, proxies don't.
+                yield ": ping\n\n"
+                last_beat = loop.time()
             await asyncio.sleep(0.4)
 
     return StreamingResponse(

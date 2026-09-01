@@ -224,7 +224,14 @@ export default function CommandCenterPage() {
     }
   };
 
-  const mission = missions[missions.length - 1] ?? null;
+  // Latest mission by creation time — the list order is not guaranteed.
+  const mission = useMemo(
+    () =>
+      missions
+        .slice()
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null,
+    [missions],
+  );
   const pending = approvals.filter((a) => a.status === "pending");
   const selected = agents.find((a) => a.id === selectedAgentId) ?? null;
   const alerts = events.filter((e) => ["SECURITY_ALERT", "POLICY_BLOCKED"].includes(e.type));

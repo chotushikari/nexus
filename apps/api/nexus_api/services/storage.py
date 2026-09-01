@@ -256,6 +256,12 @@ class DualStore:
     def backend_note(self) -> str:
         return self._backend_note
 
+    @property
+    def write_error(self) -> str | None:
+        """Reason the last durable write failed, if any. Surfaced in /health."""
+        durable = self.__dict__.get("_durable")
+        return getattr(durable, "last_write_error", None)
+
     # ── attribute delegation for the in-memory dictionaries ─────────────────
 
     def __getattr__(self, name: str):

@@ -1,0 +1,8 @@
+.git/
+__pycache__/
+*.pyc
+.gcloudignore
+.pytest_cache/
+Dockerfile.cloudrun*
+cloudbuild*
+.nexus-state/

@@ -501,7 +501,12 @@ class MissionService:
         )
 
         approval_token = approved_approval_id
-        for tool in remaining:
+        for index, tool in enumerate(remaining):
+            # Throttle real execution so each wave is observable on the floor
+            # (synthetic tools would otherwise complete inside one event tick).
+            pacing = settings.task_pacing_seconds
+            if pacing > 0:
+                await asyncio.sleep(pacing if index == 0 else pacing * 0.4)
             payload = self._tool_payload(task, tool, mission)
             try:
                 result = await asyncio.to_thread(

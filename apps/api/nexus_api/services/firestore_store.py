@@ -49,6 +49,7 @@ class FirestoreStore:
     backend_name = "firestore"
 
     def __init__(self, project: str, database: str = "(default)") -> None:
+        self.last_write_error: str | None = None
         try:
             from google.cloud import firestore
         except ImportError as exc:
@@ -84,14 +85,20 @@ class FirestoreStore:
         self._set("approvals", approval.id, approval.model_dump(mode="json"))
 
     def _set(self, collection: str, document_id: str, payload: dict[str, Any]) -> None:
+        # Broad catch is deliberate: a rejected write must never take down the
+        # caller's flow (a mission plan application was once killed by a
+        # non-retryable Firestore error that escaped a narrow tuple). The
+        # reason is logged AND surfaced via last_write_error for debugging.
         try:
             self.client.collection(collection).document(document_id).set(payload)
-        except (OSError, RuntimeError, ValueError) as exc:
+            self.last_write_error = None
+        except Exception as exc:  # noqa: BLE001 - see comment above
+            self.last_write_error = f"{type(exc).__name__}: {exc}"
             logger.error(
                 "firestore.write_failed",
                 collection=collection,
                 documentId=document_id,
-                reason=str(exc),
+                reason=self.last_write_error,
             )
 
     # ── reads ───────────────────────────────────────────────────────────────

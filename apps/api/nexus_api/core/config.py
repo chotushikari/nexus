@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     # ── Logging ─────────────────────────────────────────────────────────────
     log_level: str = "INFO"
 
+    # Comma-separated browser origins allowed to call the API. Empty means
+    # allow any origin (no cookies are used, so this is safe for the demo).
+    cors_origins: str = ""
+
+    # Minimum wall-clock seconds a task runs. Synthetic tools return in
+    # milliseconds, which makes a mission blink past the office visual;
+    # pacing throttles the REAL execution so it stays observable.
+    task_pacing_seconds: float = 2.5
+
     model_config = SettingsConfigDict(
         env_file=".env.local",
         env_file_encoding="utf-8",

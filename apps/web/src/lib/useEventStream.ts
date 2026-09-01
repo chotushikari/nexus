@@ -12,37 +12,52 @@ export function useEventStream(missionId?: string) {
   const [events, setEvents] = useState<NexusEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const url = `${apiUrl("/events/stream")}${
-      missionId ? `?mission_id=${missionId}` : ""
-    }`;
+    let cancelled = false;
 
-    const es = new EventSource(url);
-    esRef.current = es;
+    const connect = () => {
+      if (cancelled) return;
+      const url = `${apiUrl("/events/stream")}${
+        missionId ? `?mission_id=${missionId}` : ""
+      }`;
 
-    es.onopen = () => setConnected(true);
+      const es = new EventSource(url);
+      esRef.current = es;
 
-    es.onmessage = (e) => {
-      try {
-        const ev: NexusEvent = JSON.parse(e.data);
-        setEvents((prev) => {
-          // deduplicate by id
-          if (prev.some((x) => x.id === ev.id)) return prev;
-          return [...prev, ev];
-        });
-      } catch {
-        // ignore malformed events
-      }
+      es.onopen = () => setConnected(true);
+
+      es.onmessage = (e) => {
+        try {
+          const ev: NexusEvent = JSON.parse(e.data);
+          setEvents((prev) => {
+            // deduplicate by id
+            if (prev.some((x) => x.id === ev.id)) return prev;
+            return [...prev, ev];
+          });
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      es.onerror = () => {
+        setConnected(false);
+        es.close();
+        // EventSource gives up permanently after a failed stream; keep the
+        // "Reconnecting" label honest by actually reconnecting with backoff.
+        if (!cancelled) {
+          retryRef.current = setTimeout(connect, 2500);
+        }
+      };
     };
 
-    es.onerror = () => {
-      setConnected(false);
-      es.close();
-    };
+    connect();
 
     return () => {
-      es.close();
+      cancelled = true;
+      if (retryRef.current) clearTimeout(retryRef.current);
+      esRef.current?.close();
       setConnected(false);
     };
   }, [missionId]);

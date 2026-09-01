@@ -50,17 +50,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Allow the Next.js dev server to call the API
+    # Browser origins allowed to call the API. Defaults to any origin; pin
+    # CORS_ORIGINS in production to the deployed frontend origins. The app
+    # uses no cookies, so wildcard and credentials are never combined.
+    configured = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    origins = configured or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-            "http://localhost:3002",
-        ],
-        allow_credentials=True,
+        allow_origins=origins,
+        allow_credentials="*" not in origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -82,6 +80,7 @@ def create_app() -> FastAPI:
             "enterpriseId": settings.enterprise_id,
             "enterpriseName": settings.enterprise_name,
             "storeBackend": store.backend,
+            "storeWriteError": store.write_error,
             "capabilities": report.model_dump(mode="json"),
         }
 

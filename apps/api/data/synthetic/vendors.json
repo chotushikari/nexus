@@ -1,0 +1,12 @@
+{
+  "acme-technologies": {
+    "id": "acme-technologies",
+    "name": "ACME Technologies Pvt. Ltd.",
+    "registration": "ROC-AC-2020-001234",
+    "domain": "acme-tech.example.com",
+    "employees": 432,
+    "annualRevenueUsd": 12400000,
+    "status": "synthetic"
+  }
+}
+

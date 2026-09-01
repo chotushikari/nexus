@@ -1,0 +1,65 @@
+[
+  {
+    "id": "executive",
+    "name": "Executive HQ",
+    "icon": "🏛",
+    "description": "Mission orchestration and human approvals",
+    "color": "#6366f1",
+    "agents": ["alex-morgan"],
+    "gridArea": "1 / 1 / 2 / 2"
+  },
+  {
+    "id": "research",
+    "name": "Research Lab",
+    "icon": "🔬",
+    "description": "Company intelligence and document analysis",
+    "color": "#06b6d4",
+    "agents": ["elena-rao"],
+    "gridArea": "1 / 2 / 2 / 3"
+  },
+  {
+    "id": "compliance",
+    "name": "Compliance",
+    "icon": "⚖",
+    "description": "Policy checks and sanctions screening",
+    "color": "#8b5cf6",
+    "agents": ["marcus-chen"],
+    "gridArea": "2 / 1 / 3 / 2"
+  },
+  {
+    "id": "finance",
+    "name": "Finance Floor",
+    "icon": "💹",
+    "description": "Financial risk analysis and payment setup",
+    "color": "#10b981",
+    "agents": ["david-brooks"],
+    "gridArea": "2 / 2 / 3 / 3"
+  },
+  {
+    "id": "procurement",
+    "name": "Procurement",
+    "icon": "📦",
+    "description": "Vendor scoring and contract drafting",
+    "color": "#f59e0b",
+    "agents": ["sarah-patel"],
+    "gridArea": "3 / 1 / 4 / 2"
+  },
+  {
+    "id": "security",
+    "name": "Security Ops",
+    "icon": "🔐",
+    "description": "Model Armor, identity and gateway",
+    "color": "#ef4444",
+    "agents": [],
+    "gridArea": "3 / 2 / 4 / 3"
+  },
+  {
+    "id": "data",
+    "name": "Data & Memory",
+    "icon": "🗄",
+    "description": "Firestore persistence and memory bank",
+    "color": "#64748b",
+    "agents": [],
+    "gridArea": "4 / 1 / 5 / 3"
+  }
+]

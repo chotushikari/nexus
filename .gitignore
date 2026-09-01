@@ -1,0 +1,45 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.key
+gcp-credentials.json
+service-account.json
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Local durable state written by the JSON file store (services/json_store.py)
+.nexus-state/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cloud/build artifacts
+.gcloud/
+.vercel/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

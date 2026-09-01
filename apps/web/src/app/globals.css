@@ -1,0 +1,425 @@
+/* ==========================================================================
+   NEXUS DESIGN TOKENS
+   --------------------------------------------------------------------------
+   One palette. Warm paper chrome, sage floor, oak furniture, earthy semantics.
+   Rules enforced here:
+     - No dark theme. No violet/indigo. No neon.
+     - Colour is never decorative; it encodes runtime state only.
+     - Every ramp is 4 steps so pixel art and UI share the same vocabulary.
+   The office canvas reads these same values from lib/pixel/palette.ts —
+   keep the two in sync.
+   ========================================================================== */
+
+/* @import must precede @tailwind directives or PostCSS drops it. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  /* ---- Paper: UI chrome, lightest to strongest ---- */
+  --paper-0: #fbf8f1; /* raised panel */
+  --paper-1: #f5f0e4; /* app background (bone) */
+  --paper-2: #ebe4d4; /* recessed / inset */
+  --paper-3: #ded5c0; /* hairline border */
+  --paper-4: #c4b89e; /* strong divider */
+
+  /* ---- Ink: warm charcoal, never pure black ---- */
+  --ink-0: #2b2620; /* primary text */
+  --ink-1: #4a4238; /* secondary text */
+  --ink-2: #6e6355; /* muted / labels */
+  --ink-3: #928676; /* faint / disabled */
+
+  /* ---- Sage: floor tiles, calm structure ---- */
+  --sage-0: #a8bca5;
+  --sage-1: #8fa68e;
+  --sage-2: #758c74;
+  --sage-3: #5c7159;
+
+  /* ---- Oak: desks, partitions, warmth ---- */
+  --oak-0: #c69a6d;
+  --oak-1: #a97c50;
+  --oak-2: #86603c;
+  --oak-3: #634528;
+
+  /* ---- Semantic runtime state (earthy, muted, deliberate) ----
+     These map 1:1 to RuntimeStatus on the backend. */
+  --state-neutral: #6e6355; /* OFFLINE / IDLE      */
+  --state-active: #3f6e63; /* WORKING / TOOL_CALL */
+  --state-comm: #4a6f8a; /* COMMUNICATING       */
+  --state-success: #4a7c4e; /* COMPLETED           */
+  --state-warning: #b07d2b; /* WAITING / PAUSED    */
+  --state-approval: #c8860d; /* APPROVAL_REQUIRED   */
+  --state-danger: #a63d2f; /* BLOCKED / FAILED    */
+
+  /* ---- Tinted washes for badge/row backgrounds ---- */
+  --wash-active: rgba(63, 110, 99, 0.1);
+  --wash-comm: rgba(74, 111, 138, 0.1);
+  --wash-success: rgba(74, 124, 78, 0.1);
+  --wash-warning: rgba(176, 125, 43, 0.12);
+  --wash-approval: rgba(200, 134, 13, 0.14);
+  --wash-danger: rgba(166, 61, 47, 0.1);
+
+  /* ---- Elevation: warm shadows, never blue-grey ---- */
+  --shadow-1: 0 1px 2px rgba(43, 38, 32, 0.06);
+  --shadow-2: 0 2px 8px rgba(43, 38, 32, 0.08);
+  --shadow-3: 0 8px 24px rgba(43, 38, 32, 0.1);
+
+  /* ---- Type ---- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono",
+    Menlo, Consolas, monospace;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: var(--paper-1);
+  color: var(--ink-0);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Typography scale -------------------------------------------------- */
+
+.t-display {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.t-title {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.t-body {
+  font-size: 13.5px;
+}
+.t-small {
+  font-size: 12.5px;
+}
+
+/* Section labels: the enterprise-software tell. Wide-tracked small caps. */
+.t-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* Tabular data, ids, tool names, timestamps. */
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Surfaces ---------------------------------------------------------- */
+
+.panel {
+  background: var(--paper-0);
+  border: 1px solid var(--paper-3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.inset {
+  background: var(--paper-2);
+  border: 1px solid var(--paper-3);
+  border-radius: var(--radius);
+}
+
+/* Replaces the old dark `.glass`. Kept as a class name so no page breaks,
+   but it is now warm paper, not rgba(17,24,39,.8). */
+.glass {
+  background: rgba(251, 248, 241, 0.86);
+  backdrop-filter: blur(10px) saturate(1.1);
+  border: 1px solid var(--paper-3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+/* Code / payload blocks. Previously #0a0f1e on a light page — now paper. */
+.code-block {
+  background: var(--paper-2);
+  border: 1px solid var(--paper-3);
+  border-radius: var(--radius);
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+/* ---- State badges ------------------------------------------------------
+   Colour AND text always travel together (accessibility §34) — never rely
+   on hue alone to communicate a runtime state. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.s-neutral {
+  color: var(--state-neutral);
+  background: var(--paper-2);
+  border-color: var(--paper-3);
+}
+.s-active {
+  color: var(--state-active);
+  background: var(--wash-active);
+  border-color: rgba(63, 110, 99, 0.22);
+}
+.s-comm {
+  color: var(--state-comm);
+  background: var(--wash-comm);
+  border-color: rgba(74, 111, 138, 0.22);
+}
+.s-success {
+  color: var(--state-success);
+  background: var(--wash-success);
+  border-color: rgba(74, 124, 78, 0.22);
+}
+.s-warning {
+  color: var(--state-warning);
+  background: var(--wash-warning);
+  border-color: rgba(176, 125, 43, 0.26);
+}
+.s-approval {
+  color: var(--state-approval);
+  background: var(--wash-approval);
+  border-color: rgba(200, 134, 13, 0.3);
+}
+.s-danger {
+  color: var(--state-danger);
+  background: var(--wash-danger);
+  border-color: rgba(166, 61, 47, 0.22);
+}
+
+/* ---- Controls ---------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--paper-4);
+  background: var(--paper-0);
+  color: var(--ink-0);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease,
+    transform 0.06s ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--paper-2);
+  border-color: var(--ink-3);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The single primary action on a screen. Ink, not a colour. */
+.btn-primary {
+  background: var(--ink-0);
+  border-color: var(--ink-0);
+  color: var(--paper-0);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ink-1);
+  border-color: var(--ink-1);
+}
+
+/* Reserved for the approval decision — the one place amber is a button. */
+.btn-approve {
+  background: var(--state-approval);
+  border-color: var(--state-approval);
+  color: #fff;
+}
+.btn-approve:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.btn-deny {
+  background: var(--paper-0);
+  border-color: var(--state-danger);
+  color: var(--state-danger);
+}
+.btn-deny:hover:not(:disabled) {
+  background: var(--wash-danger);
+}
+
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--paper-4);
+  background: var(--paper-0);
+  color: var(--ink-0);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+.input::placeholder {
+  color: var(--ink-3);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--state-active);
+  box-shadow: 0 0 0 3px var(--wash-active);
+}
+
+/* Keyboard focus must always be visible (§34). */
+:focus-visible {
+  outline: 2px solid var(--state-active);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---- Pixel-art rendering ----------------------------------------------
+   The office canvas is upscaled with nearest-neighbour. Without this the
+   browser bilinear-filters it and the whole thing turns to mush. */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* ---- Scrollbars -------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--paper-1);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--paper-4);
+  border-radius: 5px;
+  border: 2px solid var(--paper-1);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+}
+
+/* ---- Motion ------------------------------------------------------------
+   Restrained by design (§31: "do not over-animate"). Each of these is used
+   for exactly one event class, never ambiently. */
+
+@keyframes attention-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--wash-approval);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+/* APPROVAL_REQUIRED only. */
+.attention {
+  animation: attention-ring 2.2s ease-out infinite;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.slide-up {
+  animation: slide-up 0.26s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.2s ease-in;
+}
+
+/* Indeterminate progress for a running planner step. */
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 33%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--wash-active),
+    transparent
+  );
+  animation: sweep 1.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

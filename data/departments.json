@@ -1,0 +1,123 @@
+[
+  {
+    "id": "executive",
+    "name": "Executive",
+    "description": "Mission control, strategy, and operator approvals.",
+    "managerAgentId": "alex-morgan",
+    "theme": { "primary": "#0F1E3D", "accent": "#D4AF37" },
+    "location": { "floor": 1, "x": 520, "y": 60, "width": 240, "height": 150 }
+  },
+  {
+    "id": "research-intelligence",
+    "name": "Research & Intelligence",
+    "description": "Vendor intelligence and document analysis.",
+    "managerAgentId": "elena-rao",
+    "theme": { "primary": "#1B4332", "accent": "#FFB703" },
+    "location": { "floor": 1, "x": 100, "y": 260, "width": 220, "height": 140 }
+  },
+  {
+    "id": "compliance-legal",
+    "name": "Compliance & Legal",
+    "description": "Policy, sanctions, and compliance decisions.",
+    "managerAgentId": "marcus-chen",
+    "theme": { "primary": "#2C2C2C", "accent": "#C0C0C0" },
+    "location": { "floor": 1, "x": 360, "y": 260, "width": 220, "height": 140 }
+  },
+  {
+    "id": "finance-treasury",
+    "name": "Finance & Treasury",
+    "description": "Financial risk, invoices, and governed payment setup.",
+    "managerAgentId": "david-brooks",
+    "theme": { "primary": "#1E5631", "accent": "#CD7F32" },
+    "location": { "floor": 1, "x": 620, "y": 260, "width": 220, "height": 140 }
+  },
+  {
+    "id": "procurement-supply-chain",
+    "name": "Procurement & Supply Chain",
+    "description": "Supplier scoring, contracts, and onboarding packages.",
+    "managerAgentId": "sarah-patel",
+    "theme": { "primary": "#6B0F1A", "accent": "#B87333" },
+    "location": { "floor": 1, "x": 880, "y": 260, "width": 220, "height": 140 }
+  },
+  {
+    "id": "security-defense",
+    "name": "Security & Defense",
+    "description": "Prompt-injection detection, quarantine, threat intelligence.",
+    "managerAgentId": "victor-stone",
+    "theme": { "primary": "#8B0000", "accent": "#1A1A1A" },
+    "location": { "floor": 1, "x": 220, "y": 470, "width": 220, "height": 140 }
+  },
+  {
+    "id": "data-memory",
+    "name": "Data & Memory",
+    "description": "Persistent mission state, memory records, and replay.",
+    "managerAgentId": "marie-dubois",
+    "theme": { "primary": "#4B0082", "accent": "#FFFFF0" },
+    "location": { "floor": 1, "x": 480, "y": 470, "width": 220, "height": 140 }
+  },
+  {
+    "id": "engineering-infrastructure",
+    "name": "Engineering & Infrastructure",
+    "description": "Cloud Run, Firestore, deployments, and platform health.",
+    "managerAgentId": "ada-reyes",
+    "theme": { "primary": "#2E5C8A", "accent": "#FF6F00" },
+    "location": { "floor": 1, "x": 740, "y": 470, "width": 220, "height": 140 }
+  },
+  {
+    "id": "hr-talent",
+    "name": "HR & Talent",
+    "description": "Agent lifecycle, registration, and status governance.",
+    "managerAgentId": "theo-nakamura",
+    "theme": { "primary": "#D2B48C", "accent": "#3E2723" },
+    "location": { "floor": 2, "x": 100, "y": 100, "width": 220, "height": 140 }
+  },
+  {
+    "id": "marketing-brand",
+    "name": "Marketing & Brand",
+    "description": "Mission summaries and stakeholder communication drafts.",
+    "managerAgentId": "riley-kim",
+    "theme": { "primary": "#FF6B35", "accent": "#D62828" },
+    "location": { "floor": 2, "x": 360, "y": 100, "width": 220, "height": 140 }
+  },
+  {
+    "id": "sales-revenue",
+    "name": "Sales & Revenue",
+    "description": "Revenue forecasts, deal scoring, and customer success signals.",
+    "managerAgentId": "jordan-blake",
+    "theme": { "primary": "#1E3A8A", "accent": "#FFD700" },
+    "location": { "floor": 2, "x": 620, "y": 100, "width": 220, "height": 140 }
+  },
+  {
+    "id": "operations-logistics",
+    "name": "Operations & Logistics",
+    "description": "Mission timeline, logistics state, and operational replay.",
+    "managerAgentId": "sam-okafor",
+    "theme": { "primary": "#008080", "accent": "#C0C0C0" },
+    "location": { "floor": 2, "x": 880, "y": 100, "width": 220, "height": 140 }
+  },
+  {
+    "id": "audit-risk",
+    "name": "Audit & Risk",
+    "description": "Audit review, risk review, and immutable evidence.",
+    "managerAgentId": "iris-vance",
+    "theme": { "primary": "#36454F", "accent": "#A0522D" },
+    "location": { "floor": 2, "x": 230, "y": 310, "width": 220, "height": 140 }
+  },
+  {
+    "id": "innovation-rd",
+    "name": "Innovation & R&D",
+    "description": "Experimental agent concepts and prototype governance.",
+    "managerAgentId": "nova-singh",
+    "theme": { "primary": "#FFD700", "accent": "#9370DB" },
+    "location": { "floor": 2, "x": 490, "y": 310, "width": 220, "height": 140 }
+  },
+  {
+    "id": "partnerships",
+    "name": "Partnerships",
+    "description": "Alliances, humanitarian supplier retargeting, and partner review.",
+    "managerAgentId": "mateo-cruz",
+    "theme": { "primary": "#8B4513", "accent": "#FFD700" },
+    "location": { "floor": 2, "x": 750, "y": 310, "width": 220, "height": 140 }
+  }
+]
+
